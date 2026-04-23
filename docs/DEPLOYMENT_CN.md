@@ -108,6 +108,179 @@ R1LAB_PORTS=80,18888
 - `18888` 端口用于你自己调试
 - `R1LAB_R1_IP` 不是后端必填项，只在 ADB 脚本里使用
 
+### 4.3.1 OpenAI 兼容接口适配说明
+
+本项目不是只能接官方 OpenAI。
+
+当前实现是面向 OpenAI-compatible backend 的，也就是：
+
+- 官方 OpenAI 风格接口
+- 你自己搭建的中转站
+- 你自己维护的模型网关
+- 任何 OpenAI 兼容代理服务
+
+当前代码直接支持的接口路径：
+
+- `GET /models`
+- `POST /responses`
+- `POST /chat/completions`
+
+### 4.3.2 `responses` 和 `chat/completions` 的区别
+
+当前项目支持两种主线路：
+
+#### 方式 A：`responses`
+
+推荐配置：
+
+```dotenv
+R1LAB_WIRE_API=responses
+```
+
+这时会优先请求：
+
+```text
+POST /responses
+```
+
+请求体核心结构：
+
+```json
+{
+  "model": "YOUR_MODEL",
+  "input": "用户文本",
+  "store": false
+}
+```
+
+如果开流式，还会额外带：
+
+```json
+{
+  "stream": true
+}
+```
+
+#### 方式 B：`chat/completions`
+
+推荐配置：
+
+```dotenv
+R1LAB_WIRE_API=chat
+```
+
+这时会优先请求：
+
+```text
+POST /chat/completions
+```
+
+请求体核心结构：
+
+```json
+{
+  "model": "YOUR_MODEL",
+  "messages": [
+    {
+      "role": "user",
+      "content": "用户文本"
+    }
+  ]
+}
+```
+
+如果开流式，还会额外带：
+
+```json
+{
+  "stream": true
+}
+```
+
+### 4.3.3 流式和非流式
+
+用这个环境变量控制：
+
+```dotenv
+R1LAB_PREFER_SSE=true
+```
+
+含义：
+
+- `true`：优先使用 SSE 流式返回
+- `false`：使用普通 JSON 返回
+
+### 4.3.4 当前代码会从哪些返回里取文本
+
+当前实现会自动从这些格式里提取最终答案：
+
+#### `responses` 普通 JSON
+
+优先读取：
+
+- `output_text`
+
+如果没有，再尝试：
+
+- `output[].content[]`
+- 其中 `type=output_text` 的 `text`
+
+#### `chat/completions` 普通 JSON
+
+优先读取：
+
+- `choices[0].message.content`
+
+如果 `content` 不是字符串，而是数组，也会继续尝试读取其中的 `text`
+
+#### `responses` SSE
+
+当前实现会读取事件：
+
+- `type=response.output_text.delta`
+
+#### `chat/completions` SSE
+
+当前实现会读取：
+
+- `object=chat.completion.chunk`
+- `choices[].delta.content`
+
+### 4.3.5 自动回退逻辑
+
+当前代码不是“固定只打一种接口”。
+
+逻辑是：
+
+1. 如果你设为 `responses`，先请求 `/responses`
+2. 如果请求成功，但抽不出最终文本，再自动尝试 `/chat/completions`
+3. 如果你设为 `chat`，顺序反过来
+
+这样做是因为很多兼容站虽然声称同时支持两种接口，但实际字段组织不完全一致。
+
+### 4.3.6 如果你自己跑了中转站，应该怎么写
+
+如果你是自己跑了一个 OpenAI 兼容中转站，那么这里完全可以直接接你自己的中转站。
+
+示例：
+
+```dotenv
+R1LAB_OPENAI_BASE_URL=https://your-gateway.example/v1
+R1LAB_OPENAI_API_KEY=<YOUR_GATEWAY_KEY>
+R1LAB_OPENAI_MODEL=<YOUR_MODEL_NAME>
+R1LAB_WIRE_API=responses
+R1LAB_PREFER_SSE=true
+```
+
+如果你的中转站更适合 `chat/completions`，那就改成：
+
+```dotenv
+R1LAB_WIRE_API=chat
+R1LAB_PREFER_SSE=false
+```
+
+也就是说，这里文档里说的“OpenAI 兼容接口”，完全可以是你自己建的中转站，不要求一定是官方接口。
+
 ### 4.4 安装并启动
 
 ```bash
@@ -327,3 +500,16 @@ bash scripts/r1_trigger_talk.sh
 - 不提交真实 token
 - 不提交运行日志
 - 不把第三方项目源码直接 vendoring 进来，除非你确认许可证边界
+
+## 13. 参考仓库链接
+
+如果你想继续研究这条路线，建议一起看这些仓库：
+
+- `r1-iot-java`
+  <https://github.com/ring1012/r1-iot-java>
+- `r1-helper`
+  <https://github.com/sagan/r1-helper>
+- `NeteaseCloudMusicApi`
+  <https://github.com/Binaryify/NeteaseCloudMusicApi>
+- `Home Assistant Core`
+  <https://github.com/home-assistant/core>

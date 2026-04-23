@@ -16,6 +16,48 @@
 - 网易云音乐接口
 - 本地规则优先的播放/音量/模式控制
 
+## OpenAI 兼容后端
+
+这里说的“大模型后端”不是只能接官方 OpenAI。
+
+当前代码的定位是一个 OpenAI-compatible client，可以接：
+
+- 官方 OpenAI 风格接口
+- 你自己搭的中转站
+- 你自己维护的模型分发网关
+- 任何 OpenAI 兼容代理服务
+
+当前代码直接支持的接口路径：
+
+- `GET /models`
+- `POST /responses`
+- `POST /chat/completions`
+
+当前代码直接支持的返回模式：
+
+- 普通 JSON
+- SSE 流式返回
+
+当前代码的兼容策略：
+
+- 默认优先走 `responses`
+- 如果 `responses` 返回里没拿到可读文本，会自动回退试 `chat/completions`
+- 如果你把 `R1LAB_WIRE_API=chat`，顺序反过来
+- 如果 `R1LAB_PREFER_SSE=true`，优先使用流式 SSE
+- 如果 `R1LAB_PREFER_SSE=false`，走普通 JSON
+
+所以这不是“只认某一个站”，而是适合接你自己跑的 OpenAI 兼容中转站。
+
+例如你自己跑了一个兼容网关时，可以这样填：
+
+```dotenv
+R1LAB_OPENAI_BASE_URL=https://your-gateway.example/v1
+R1LAB_OPENAI_API_KEY=<YOUR_GATEWAY_KEY>
+R1LAB_OPENAI_MODEL=<YOUR_MODEL_NAME>
+R1LAB_WIRE_API=responses
+R1LAB_PREFER_SSE=true
+```
+
 ## 适合谁
 
 这个仓库适合下面这类场景：
@@ -131,10 +173,10 @@ tail -f logs/server.log
 
 本项目在方案设计和兼容思路上参考了若干社区项目，例如：
 
-- `ring1012/r1-iot-java`
-- `r1-helper`
-- `Binaryify/NeteaseCloudMusicApi`
-- `Home Assistant`
+- [`ring1012/r1-iot-java`](https://github.com/ring1012/r1-iot-java)
+- [`sagan/r1-helper`](https://github.com/sagan/r1-helper)
+- [`Binaryify/NeteaseCloudMusicApi`](https://github.com/Binaryify/NeteaseCloudMusicApi)
+- [`home-assistant/core`](https://github.com/home-assistant/core)
 
 公开版仓库里不会直接打包这些项目的源码副本；具体说明见
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
