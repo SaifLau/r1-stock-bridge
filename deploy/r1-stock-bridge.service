@@ -1,0 +1,15 @@
+[Unit]
+Description=R1 Stock Bridge Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/r1-stock-bridge
+ExecStart=/opt/r1-stock-bridge/.venv/bin/python /opt/r1-stock-bridge/scripts/run_server.py
+Restart=always
+RestartSec=2
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
